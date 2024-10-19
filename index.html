@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Wheel and Cryptocurrencies</title>
+    <style>
+        body {
+            font-family: Impact, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        #title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #e0e0e0;
+        }
+        #container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin-top: 50px;
+        }
+        canvas {
+            border: 2px solid #333;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #cryptoInfo {
+            margin-left: 50px;
+            padding: 20px;
+            background-color: #1e1e1e;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            max-width: 300px;
+            cursor: pointer;
+        }
+        #cryptoInfo h2 {
+            color: #4a90e2;
+            margin-top: 0;
+        }
+        #cryptoInfo p {
+            margin: 5px 0;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 30px;
+        }
+        #cryptoContainer {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .cryptoCard {
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #1e1e1e;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title">Random Crypto | Tap the Wheel</h1>
+    <div id="container">
+        <canvas id="wheel" width="800" height="800"></canvas>
+        <div id="cryptoInfo"></div>
+    </div>
+
+    <h1>Cryptocurrencies</h1>
+    <div id="cryptoContainer">
+        <!-- I dati verranno inseriti qui dinamicamente -->
+    </div>
+
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const cryptoInfoDiv = document.getElementById('cryptoInfo');
+
+        const radius = canvas.width / 2;
+        let currentRotation = 0;
+        let isSpinning = false;
+        let spinVelocity = 0;
+        let lastSpinTime = 0;
+        let cryptoData = [];
+
+        function shuffleColors(numSlices) {
+            const colors = [];
+            for (let i = 0; i < numSlices; i++) {
+                const hue = Math.floor(Math.random() * 360);
+                colors.push(`hsl(${hue}, 70%, 50%)`);
+            }
+            return colors;
+        }
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const numSlices = cryptoData.length;
+            const angle = 2 * Math.PI / numSlices;
+            const colors = shuffleColors(numSlices);
+
+            for (let i = 0; i < numSlices; i++) {
+                const startAngle = i * angle + currentRotation;
+                const endAngle = (i + 1) * angle + currentRotation;
+
+                ctx.beginPath();
+                ctx.moveTo(radius, radius);
+                ctx.arc(radius, radius, radius, startAngle, endAngle);
+
+                ctx.fillStyle = colors[i];
+                ctx.fill();
+
+                ctx.save();
+                ctx.translate(radius, radius);
+                ctx.rotate(startAngle + angle / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "white";
+                ctx.font = "bold 16px Arial";
+                ctx.fillText(cryptoData[i].symbol, radius - 10, 5);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if (!isSpinning) return;
+
+            const now = Date.now();
+            const deltaTime = (now - lastSpinTime) / 1000;
+            lastSpinTime = now;
+
+            currentRotation += spinVelocity * deltaTime;
+            spinVelocity *= 0.99; // Fattore di rallentamento
+
+            if (Math.abs(spinVelocity) < 0.1) {
+                isSpinning = false;
+                spinVelocity = 0;
+                showSelectedCrypto();
+            }
+
+            drawWheel();
+            requestAnimationFrame(spinWheel);
+        }
+
+        function startSpin(event) {
+            if (isSpinning) return;
+
+            spinVelocity = 20 + Math.random() * 30;
+            const randomDirection = Math.random() < 0.5 ? 1 : -1;
+            spinVelocity *= randomDirection;
+
+            isSpinning = true;
+            lastSpinTime = Date.now();
+            spinWheel();
+        }
+
+        function showSelectedCrypto() {
+            const numSlices = cryptoData.length;
+            const sliceAngle = 2 * Math.PI / numSlices;
+            const selectedIndex = Math.floor(((currentRotation % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / sliceAngle);
+            const selectedCrypto = cryptoData[selectedIndex];
+
+            cryptoInfoDiv.innerHTML = `
+                <h1>${selectedCrypto.name}</h1>
+                <p><strong>Symbol:</strong> ${selectedCrypto.symbol}</p>
+                <p><strong>Rank:</strong> ${selectedCrypto.rank}</p>
+                <p><strong>Price (USD):</strong> $${parseFloat(selectedCrypto.price_usd).toFixed(2)}</p>
+                <p><strong>Market Cap (USD):</strong> $${parseFloat(selectedCrypto.market_cap_usd).toLocaleString()}</p>
+                <p><strong>Volume (24h):</strong> $${parseFloat(selectedCrypto.volume24).toLocaleString()}</p>
+                <p><strong>Change (24h):</strong> ${selectedCrypto.percent_change_24h}%</p>
+            `;
+
+            cryptoInfoDiv.onclick = () => {
+                const targetElement = document.getElementById(`crypto-${selectedCrypto.id}`);
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth' });
+                }
+            };
+        }
+
+        async function fetchCryptoData() {
+            try {
+                const response = await fetch('https://api.coinlore.net/api/tickers/');
+                const data = await response.json();
+                cryptoData = data.data.slice(0, 100);
+                drawWheel();
+
+                const container = document.getElementById('cryptoContainer');
+                container.innerHTML = ''; // Svuota il contenitore
+
+                data.data.forEach(crypto => {
+                    const card = document.createElement('div');
+                    card.classList.add('cryptoCard');
+                    card.id = `crypto-${crypto.id}`; // Aggiungi un ID unico
+                    card.innerHTML = `<h2>${crypto.name} (${crypto.symbol})</h2>
+                                      <p>Prezzo USD: $${parseFloat(crypto.price_usd).toFixed(7)}</p>
+                                      <p>Variazione 24h: ${crypto.percent_change_24h}%</p>
+                                      <p>Variazione 1h: ${crypto.percent_change_1h}%</p>
+                                      <p>Variazione 7d: ${crypto.percent_change_7d}%</p>
+                                      <p>Prezzo BTC: ${crypto.price_btc}</p>
+                                      <p>Capitalizzazione di Mercato USD: $${parseFloat(crypto.market_cap_usd).toLocaleString()}</p>
+                                      <p>Volume 24h: $${parseFloat(crypto.volume24).toLocaleString()}</p>
+                                      <p>Volume Precedente 24h: $${parseFloat(crypto.volume24a).toLocaleString()}</p>
+                                      <p>Offerta Circolante: ${crypto.csupply}</p>
+                                      <p>Offerta Totale: ${crypto.tsupply}</p>`;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Errore nel recupero dei dati:', error);
+            }
+        }
+
+        // Aggiorna la pagina ogni 5 minuti
+        setInterval(() => {
+           location.reload(); 
+        }, 300000); // Intervallo in millisecondi (300000 ms corrispondono a 5 minuti)
+
+        canvas.addEventListener('click', startSpin);
+        fetchCryptoData();
+    </script>
+</body>
+</html>
